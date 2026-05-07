@@ -1,20 +1,13 @@
 <!doctype html>
 <html>
   <head>
-    <title>GitHub OAuth 3LO</title>
+    <title>Microsoft Graph OAuth 3LO</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
     <style>
-      :root {
-        --bg: #f8fafc;
-        --surface: #ffffff;
-        --primary: #24292f;
-        --text-main: #24292f;
-        --text-muted: #64748b;
-        --bubble-agent: #ffffff;
-      }
+      :root { --bg: #f8fafc; --surface: #ffffff; --primary: #0078d4; --text-main: #24292f; --text-muted: #64748b; --bubble-agent: #ffffff; }
       body { font-family: "Inter", -apple-system, sans-serif; margin: 0; background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); color: var(--text-main); display: flex; flex-direction: column; height: 100vh; }
       #header { padding: 24px; background: var(--surface); border-bottom: 1px solid #e5e7eb; font-weight: 600; text-align: center; font-size: 1.1em; box-shadow: 0 1px 3px rgba(0,0,0,0.05); position: relative; }
       #chat-wrapper { flex: 1; overflow-y: auto; padding: 24px 16px; scroll-behavior: smooth; }
@@ -34,9 +27,9 @@
   </head>
   <body>
     <div id="header">
-      GitHub Assistant
+      Microsoft Graph OAuth 3LO
       <div id="user-info-container" style="position:absolute;right:24px;top:50%;transform:translateY(-50%);display:none;flex-direction:column;align-items:flex-end;gap:4px;">
-        <div id="user-badge" style="font-size:14px;font-weight:500;color:#24292f;background:#f1f5f9;padding:4px 12px;border-radius:20px;"></div>
+        <div id="user-badge" style="font-size:14px;font-weight:500;color:#0078d4;background:#f1f5f9;padding:4px 12px;border-radius:20px;"></div>
         <div id="session-badge" style="font-size:11px;font-weight:normal;color:#94a3b8;font-family:monospace;"></div>
       </div>
     </div>
@@ -50,7 +43,7 @@
     </div>
     <div id="chat-wrapper" style="display:none;">
       <div id="chat">
-        <div class="msg agent">Ask me about your GitHub repositories. Try: "list my repos"</div>
+        <div class="msg agent">Ask me about your Microsoft 365 profile. Try: "what is my profile"</div>
       </div>
     </div>
     <div id="input-container" style="display:none;">
@@ -97,11 +90,10 @@
             response: pendingAuthCall.args.authConfig,
           },
         };
-        const cardId = "auth-card-" + pendingAuthCall.id;
-        const card = document.getElementById(cardId);
+        const card = document.getElementById("auth-card-" + pendingAuthCall.id);
         if (card) card.remove();
         pendingAuthCall = null;
-        const tempDiv = add("Authenticating with GitHub...", "thought");
+        const tempDiv = add("Authenticating with Microsoft...", "thought");
         setThinking(true);
         try {
           const response = await fetch("/chat", { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload) });
@@ -170,8 +162,6 @@
                     const authConfig = args.authConfig || args.auth_config;
                     if (!authConfig) { add("Error: Missing auth configuration.", "agent"); continue; }
                     const authUri = authConfig.exchangedAuthCredential?.oauth2?.authUri;
-                    const nonce = authConfig.exchangedAuthCredential?.oauth2?.nonce;
-                    if (nonce) document.cookie = "consent_nonce=" + nonce + "; path=/";
 
                     const authDiv = document.createElement("div");
                     authDiv.id = "auth-card-" + pendingAuthCall.id;
@@ -182,13 +172,17 @@
                     window.openAuthPopup = function(url, buttonElement) {
                       if (buttonElement) { buttonElement.innerText = "Waiting..."; buttonElement.style.opacity = "0.7"; }
                       const popup = window.open(url, "_blank");
-                      if (!popup) { alert("Popup blocked! Please allow popups."); if (buttonElement) { buttonElement.innerText = "Authorize to continue"; buttonElement.style.opacity = "1"; } }
-                      else {
-                        const timer = setInterval(() => { if (popup.closed) { clearInterval(timer); if (pendingAuthCall) resumeSession(); } }, 500);
+                      if (!popup) {
+                        alert("Popup blocked! Please allow popups.");
+                        if (buttonElement) { buttonElement.innerText = "Authorize to continue"; buttonElement.style.opacity = "1"; }
+                      } else {
+                        const timer = setInterval(() => {
+                          if (popup.closed) { clearInterval(timer); if (pendingAuthCall) resumeSession(); }
+                        }, 500);
                       }
                     };
 
-                    authDiv.innerHTML = `<div style="text-align:left;"><h3 style="color:#78350f;font-weight:600;margin:0 0 8px 0;font-size:15px;">⚠️ GitHub Authorization Required</h3><p style="color:#92400e;font-size:14px;margin:0 0 16px 0;">The agent needs access to your GitHub account.</p><button onclick="window.openAuthPopup('${authUri}', this)" style="background:#24292f;color:white;font-weight:500;padding:8px 24px;border:none;border-radius:6px;cursor:pointer;font-size:14px;">Authorize with GitHub</button></div>`;
+                    authDiv.innerHTML = `<div style="text-align:left;"><h3 style="color:#78350f;font-weight:600;margin:0 0 8px 0;font-size:15px;">⚠️ Microsoft Authorization Required</h3><p style="color:#92400e;font-size:14px;margin:0 0 16px 0;">The agent needs access to your Microsoft 365 account.</p><button onclick="window.openAuthPopup('${authUri}', this)" style="background:#0078d4;color:white;font-weight:500;padding:8px 24px;border:none;border-radius:6px;cursor:pointer;font-size:14px;">Authorize with Microsoft</button></div>`;
                     chat.appendChild(authDiv);
                     scroll();
                     currentAgentDiv = null;
