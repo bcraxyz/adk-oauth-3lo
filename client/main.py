@@ -4,7 +4,7 @@ import json
 import logging
 import os
 import sys
-
+import asyncio
 import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
@@ -137,6 +137,41 @@ async def commit(request: Request):
         return HTMLResponse(err_text, status_code=status)
 
     pending_auth.pop(user_id, None)
+
+    # Poll Auth Manager until the token is stored (done=True) before closing
+    # the popup. This ensures that when the JS sends the resume function_response,
+    # the ADK's retrieve call finds the credential and returns done=True.
+    import google.auth
+    from google.auth.transport.requests import Request as GRequest
+    from google.cloud.iamconnectorcredentials_v1alpha import (
+        IAMConnectorCredentialsServiceClient,
+        RetrieveCredentialsRequest,
+    )
+    try:
+        creds, _ = google.auth.default(
+            scopes=["https://www.googleapis.com/auth/cloud-platform"]
+        )
+        if not creds.valid:
+            creds.refresh(GRequest())
+
+        retrieve_url = f"https://iamconnectorcredentials.googleapis.com/v1alpha/{connector}/credentials:retrieve"
+        for _ in range(10):
+            await asyncio.sleep(1.0)
+            r = await asyncio.to_thread(
+                lambda: __import__("requests").post(
+                    retrieve_url,
+                    json={"user_id": user_id, "continue_uri": os.environ.get("CONTINUE_URI", "")},
+                    headers={"Authorization": f"Bearer {creds.token}"},
+                )
+            )
+            if r.status_code == 200:
+                data = r.json()
+                if data.get("done"):
+                    logger.info("Token confirmed stored in Auth Manager vault.")
+                    break
+            logger.info(f"Waiting for Auth Manager to store token... status={r.status_code}")
+    except Exception as e:
+        logger.warning(f"Could not poll for token storage confirmation: {e}")
 
     return HTMLResponse("""
         <script>window.close();</script>
