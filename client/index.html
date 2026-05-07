@@ -182,7 +182,7 @@
                       }
                     };
 
-                    authDiv.innerHTML = `<div style="text-align:left;"><h3 style="color:#78350f;font-weight:600;margin:0 0 8px 0;font-size:15px;">⚠️ Microsoft Authorization Required</h3><p style="color:#92400e;font-size:14px;margin:0 0 16px 0;">The agent needs access to your Microsoft 365 account.</p><button onclick="window.openAuthPopup('${authUri}', this)" style="background:#0078d4;color:white;font-weight:500;padding:8px 24px;border:none;border-radius:6px;cursor:pointer;font-size:14px;">Authorize with Microsoft</button></div>`;
+                    authDiv.innerHTML = `<div style="text-align:left;"><h3 style="color:#78350f;font-weight:600;margin:0 0 8px 0;font-size:15px;">⚠️ Authorization Required</h3><p style="color:#92400e;font-size:14px;margin:0 0 16px 0;">The agent needs access to your Microsoft 365 account.</p><button onclick="window.openAuthPopup('${authUri}', this)" style="background:#0078d4;color:white;font-weight:500;padding:8px 24px;border:none;border-radius:6px;cursor:pointer;font-size:14px;">Authorize</button></div>`;
                     chat.appendChild(authDiv);
                     scroll();
                     currentAgentDiv = null;
