@@ -72,7 +72,7 @@ github_list_repos_tool = AuthenticatedFunctionTool(
 )
 
 root_agent = Agent(
-    name="gcp_oauth_3lo",
+    name="adk_oauth_3lo",
     model="gemini-2.5-flash",
     instruction=(
         "You are a GitHub assistant. Use your tool to list the user's "
@@ -82,6 +82,6 @@ root_agent = Agent(
 )
 
 app = App(
-    name="gcp_oauth_3lo",
+    name="adk_oauth_3lo",
     root_agent=root_agent,
 )
