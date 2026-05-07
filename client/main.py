@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import sys
+
 import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
@@ -72,33 +73,33 @@ async def chat(request: Request):
                     yield f"data: {json.dumps({'error': err.decode()})}\n\n"
                     return
                 async for line in r.aiter_lines():
-                    if line and line.startswith("{"):
-                        try:
-                            ev = json.loads(line)
-                            parts = (ev.get("content") or {}).get("parts") or []
-                            for p in parts:
-                                fc = p.get("functionCall") or p.get("function_call")
-                                if fc and fc.get("name") == "adk_request_credential":
-                                    args = fc.get("args") or {}
-                                    auth_config = (
-                                        args.get("authConfig")
-                                        or args.get("auth_config")
-                                        or {}
-                                    )
-                                    exchanged = (
-                                        auth_config.get("exchangedAuthCredential")
-                                        or auth_config.get("exchanged_auth_credential")
-                                        or {}
-                                    )
-                                    oauth2 = exchanged.get("oauth2") or {}
-                                    nonce = oauth2.get("nonce")
-                                    if nonce:
-                                        pending_auth[user_id] = nonce
-                                        logger.info(f"Stored nonce for user {user_id}")
-                        except Exception:
-                            pass
-                        yield f"data: {line}\n\n"
-                    elif line:
+                    if line:
+                        json_str = line[6:] if line.startswith("data: ") else line
+                        if json_str.startswith("{"):
+                            try:
+                                ev = json.loads(json_str)
+                                parts = (ev.get("content") or {}).get("parts") or []
+                                for p in parts:
+                                    fc = p.get("functionCall") or p.get("function_call")
+                                    if fc and fc.get("name") == "adk_request_credential":
+                                        args = fc.get("args") or {}
+                                        auth_config = (
+                                            args.get("authConfig")
+                                            or args.get("auth_config")
+                                            or {}
+                                        )
+                                        exchanged = (
+                                            auth_config.get("exchangedAuthCredential")
+                                            or auth_config.get("exchanged_auth_credential")
+                                            or {}
+                                        )
+                                        oauth2 = exchanged.get("oauth2") or {}
+                                        nonce = oauth2.get("nonce")
+                                        if nonce:
+                                            pending_auth[user_id] = nonce
+                                            logger.info(f"Stored nonce for user {user_id}")
+                            except Exception:
+                                pass
                         yield f"{line}\n\n"
 
     return StreamingResponse(proxy_stream(), media_type="text/event-stream")
