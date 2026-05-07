@@ -12,12 +12,12 @@ from fastapi.responses import HTMLResponse, StreamingResponse
 logging.basicConfig(
     level=logging.INFO, stream=sys.stdout, format="%(levelname)s: %(message)s"
 )
-logger = logging.getLogger("gcp_oauth_3lo." + __name__)
+logger = logging.getLogger("adk_oauth_3lo." + __name__)
 
 app = FastAPI()
 
 AGENT_URL = os.environ.get("AGENT_BACKEND_URL", "http://localhost:8000")
-APP_NAME = "gcp_oauth_3lo"
+APP_NAME = "adk_oauth_3lo"
 
 
 @app.get("/")
