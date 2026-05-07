@@ -4,10 +4,12 @@ import json
 import logging
 import os
 import sys
-
 import httpx
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
+
+from dotenv import load_dotenv
+load_dotenv(dotenv_path="../.env")
 
 logging.basicConfig(
     level=logging.INFO, stream=sys.stdout, format="%(levelname)s: %(message)s"
