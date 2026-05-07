@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-
 import httpx
 from google.adk.agents import Agent
 from google.adk.apps import App
@@ -10,6 +9,9 @@ from google.adk.auth.auth_tool import AuthConfig
 from google.adk.auth.credential_manager import CredentialManager
 from google.adk.integrations.agent_identity import GcpAuthProvider, GcpAuthProviderScheme
 from google.adk.tools.authenticated_function_tool import AuthenticatedFunctionTool
+
+from dotenv import load_dotenv
+load_dotenv()
 
 PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT")
 LOCATION = os.environ.get("GOOGLE_CLOUD_LOCATION")
