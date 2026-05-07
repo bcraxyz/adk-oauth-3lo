@@ -77,6 +77,7 @@ async def chat(request: Request):
 @app.api_route("/commit", methods=["GET"])
 async def commit(request: Request):
     connector = request.query_params.get("connector_name")
+    logger.info(f"commit called: connector={connector}, cookies={dict(request.cookies)}, params={dict(request.query_params)}")
     payload = {
         "userId": request.cookies.get("user_id"),
         "userIdValidationState": request.query_params.get("user_id_validation_state"),
