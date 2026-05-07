@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import os
 import json
 import logging
 import os
 import sys
-
+import asyncio
 import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
@@ -62,7 +63,7 @@ async def chat(request: Request):
         # Include invocation_id to resume the paused invocation
         invocation_id = data.get("invocation_id")
         if invocation_id:
-            payload["invocationId"] = invocation_id
+            payload["invocation_id"] = invocation_id
         logger.info(f"resume payload invocation_id={invocation_id}")
 
     async def proxy_stream():
