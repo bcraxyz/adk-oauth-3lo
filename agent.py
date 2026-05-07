@@ -19,7 +19,7 @@ GITHUB_3LO_AUTH_PROVIDER = (
     f"projects/{PROJECT_ID}/locations/{LOCATION}/connectors/{GITHUB_3LO_AUTH_PROVIDER_ID}"
 )
 
-CONTINUE_URI = "http://localhost:8080/commit"
+CONTINUE_URI = os.environ.get("CONTINUE_URI", "http://localhost:8080/commit")
 
 CredentialManager.register_auth_provider(GcpAuthProvider())
 
