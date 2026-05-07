@@ -59,6 +59,7 @@ async def chat(request: Request):
             "role": "user",
             "parts": [{"functionResponse": function_response}],
         }
+        logger.info(f"resume payload: {json.dumps(payload, indent=2)}")
 
     async def proxy_stream():
         async with httpx.AsyncClient(timeout=120.0) as client:
