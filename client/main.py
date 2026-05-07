@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 import os
+
 import json
 import logging
 import os
 import sys
-import asyncio
+
 import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
@@ -68,9 +70,11 @@ async def chat(request: Request):
 
     async def proxy_stream():
         async with httpx.AsyncClient(timeout=120.0) as client:
-            await client.post(
-                f"{AGENT_URL}/apps/{APP_NAME}/users/{user_id}/sessions/{session_id}"
-            )
+            # Only create session for new messages, not for function_response resumes
+            if message:
+                await client.post(
+                    f"{AGENT_URL}/apps/{APP_NAME}/users/{user_id}/sessions/{session_id}"
+                )
             async with client.stream(
                 "POST", f"{AGENT_URL}/run_sse", json=payload
             ) as r:
