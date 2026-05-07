@@ -4,7 +4,7 @@ import json
 import logging
 import os
 import sys
-import asyncio
+
 import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
@@ -22,9 +22,9 @@ app = FastAPI()
 AGENT_URL = os.environ.get("AGENT_BACKEND_URL", "http://localhost:8000")
 APP_NAME = "adk_oauth_3lo"
 
-# Server-side nonce store: user_id -> nonce
+# Server-side store: user_id -> {nonce, invocation_id}
 # Populated by intercepting adk_request_credential events in the SSE stream.
-pending_auth: dict[str, str] = {}
+pending_auth: dict[str, dict] = {}
 
 
 @app.get("/")
@@ -59,7 +59,11 @@ async def chat(request: Request):
             "role": "user",
             "parts": [{"functionResponse": function_response}],
         }
-        logger.info(f"resume payload: {json.dumps(payload, indent=2)}")
+        # Include invocation_id to resume the paused invocation
+        invocation_id = data.get("invocation_id")
+        if invocation_id:
+            payload["invocationId"] = invocation_id
+        logger.info(f"resume payload invocation_id={invocation_id}")
 
     async def proxy_stream():
         async with httpx.AsyncClient(timeout=120.0) as client:
@@ -96,9 +100,10 @@ async def chat(request: Request):
                                         )
                                         oauth2 = exchanged.get("oauth2") or {}
                                         nonce = oauth2.get("nonce")
+                                        invocation_id = ev.get("invocationId") or ev.get("invocation_id")
                                         if nonce:
-                                            pending_auth[user_id] = nonce
-                                            logger.info(f"Stored nonce for user {user_id}")
+                                            pending_auth[user_id] = {"nonce": nonce, "invocation_id": invocation_id}
+                                            logger.info(f"Stored nonce and invocation_id={invocation_id} for user {user_id}")
                             except Exception:
                                 pass
                         yield f"{line}\n\n"
@@ -112,10 +117,13 @@ async def commit(request: Request):
     state = request.query_params.get("user_id_validation_state")
 
     user_id = request.cookies.get("user_id")
-    nonce = pending_auth.get(user_id) if user_id else None
+    entry = pending_auth.get(user_id) if user_id else None
 
-    if not nonce and pending_auth:
-        user_id, nonce = next(iter(pending_auth.items()))
+    if not entry and pending_auth:
+        user_id, entry = next(iter(pending_auth.items()))
+
+    nonce = entry["nonce"] if entry else None
+    invocation_id = entry.get("invocation_id") if entry else None
 
     logger.info(f"commit: user_id={user_id}, nonce_present={bool(nonce)}, connector={connector}")
 
