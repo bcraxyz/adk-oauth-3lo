@@ -4,12 +4,10 @@ import json
 import logging
 import os
 import sys
+
 import httpx
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
-
-from dotenv import load_dotenv
-load_dotenv(dotenv_path="../.env")
 
 logging.basicConfig(
     level=logging.INFO, stream=sys.stdout, format="%(levelname)s: %(message)s"
@@ -20,6 +18,10 @@ app = FastAPI()
 
 AGENT_URL = os.environ.get("AGENT_BACKEND_URL", "http://localhost:8000")
 APP_NAME = "adk_oauth_3lo"
+
+# Server-side store: user_id -> {nonce, session_id}
+# Populated by parsing adk_request_credential events in the stream.
+pending_auth: dict[str, dict] = {}
 
 
 @app.get("/")
@@ -68,8 +70,27 @@ async def chat(request: Request):
                     yield f"data: {json.dumps({'error': err.decode()})}\n\n"
                     return
                 async for line in r.aiter_lines():
-                    if line:
-                        yield f"data: {line}\n\n" if line.startswith("{") else f"{line}\n\n"
+                    if line and line.startswith("{"):
+                        # Intercept adk_request_credential to extract nonce server-side
+                        try:
+                            ev = json.loads(line)
+                            parts = (ev.get("content") or {}).get("parts") or []
+                            for p in parts:
+                                fc = p.get("functionCall") or p.get("function_call")
+                                if fc and fc.get("name") == "adk_request_credential":
+                                    args = fc.get("args") or {}
+                                    auth_config = args.get("authConfig") or args.get("auth_config") or {}
+                                    exchanged = auth_config.get("exchangedAuthCredential") or auth_config.get("exchanged_auth_credential") or {}
+                                    oauth2 = exchanged.get("oauth2") or {}
+                                    nonce = oauth2.get("nonce")
+                                    if nonce:
+                                        pending_auth[user_id] = {"nonce": nonce, "session_id": session_id}
+                                        logger.info(f"Stored nonce for user {user_id}")
+                        except Exception:
+                            pass
+                        yield f"data: {line}\n\n"
+                    elif line:
+                        yield f"{line}\n\n"
 
     return StreamingResponse(proxy_stream(), media_type="text/event-stream")
 
@@ -77,23 +98,47 @@ async def chat(request: Request):
 @app.api_route("/commit", methods=["GET"])
 async def commit(request: Request):
     connector = request.query_params.get("connector_name")
-    logger.info(f"commit called: connector={connector}, cookies={dict(request.cookies)}, params={dict(request.query_params)}")
+    state = request.query_params.get("user_id_validation_state")
+
+    # Try server-side store first, fall back to cookies
+    # Find the pending auth entry — since we only have one user in this demo,
+    # take the first match if user_id cookie isn't set.
+    user_id = request.cookies.get("user_id")
+    nonce = request.cookies.get("consent_nonce")
+
+    if not nonce and pending_auth:
+        # Fall back to server-side store
+        if user_id and user_id in pending_auth:
+            nonce = pending_auth[user_id]["nonce"]
+        else:
+            # Take the most recently stored entry
+            entry = next(iter(pending_auth.values()))
+            nonce = entry["nonce"]
+            user_id = next(iter(pending_auth.keys()))
+
+    logger.info(f"commit: user_id={user_id}, nonce_present={bool(nonce)}, connector={connector}")
+
     payload = {
-        "userId": request.cookies.get("user_id"),
-        "userIdValidationState": request.query_params.get("user_id_validation_state"),
-        "consentNonce": request.cookies.get("consent_nonce"),
+        "userId": user_id,
+        "userIdValidationState": state,
+        "consentNonce": nonce,
     }
 
     url = f"https://iamconnectorcredentials.googleapis.com/v1alpha/{connector}/credentials:finalize"
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             resp = await client.post(url, json=payload)
+            logger.info(f"finalize status={resp.status_code} body={resp.text[:200]}")
             resp.raise_for_status()
     except httpx.HTTPError as e:
         err_text = e.response.text if hasattr(e, "response") else str(e)
         status = e.response.status_code if hasattr(e, "response") else 500
         logger.error(f"Commit failed: {err_text}")
         return HTMLResponse(err_text, status_code=status)
+
+    # Clear the pending auth entry
+    if user_id in pending_auth:
+        del pending_auth[user_id]
 
     return HTMLResponse("""
         <script>window.close();</script>
