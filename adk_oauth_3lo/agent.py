@@ -4,7 +4,7 @@ import os
 import httpx
 from dotenv import load_dotenv
 from google.adk.agents import Agent
-from google.adk.apps import App
+from google.adk.apps import App, ResumabilityConfig
 from google.adk.auth.auth_credential import AuthCredential
 from google.adk.auth.auth_tool import AuthConfig
 from google.adk.auth.credential_manager import CredentialManager
@@ -26,7 +26,6 @@ CredentialManager.register_auth_provider(GcpAuthProvider())
 
 GRAPH_BASE = "https://graph.microsoft.com/v1.0"
 
-
 async def msgraph_get_my_profile(credential: AuthCredential) -> str | dict:
     """Gets the signed-in user's Microsoft 365 profile."""
     token = None
@@ -47,7 +46,6 @@ async def msgraph_get_my_profile(credential: AuthCredential) -> str | dict:
             return f"Error from Microsoft Graph: {response.status_code} - {response.text}"
 
         return response.json()
-
 
 msgraph_3lo_tool = AuthenticatedFunctionTool(
     func=msgraph_get_my_profile,
@@ -73,4 +71,5 @@ root_agent = Agent(
 app = App(
     name="adk_oauth_3lo",
     root_agent=root_agent,
+    resumability_config=ResumabilityConfig(is_resumable=True),
 )
