@@ -89,6 +89,7 @@
             id: pendingAuthCall.id,
             response: pendingAuthCall.args.authConfig,
           },
+          invocation_id: pendingAuthCall._invocationId,
         };
         const card = document.getElementById("auth-card-" + pendingAuthCall.id);
         if (card) card.remove();
@@ -158,6 +159,7 @@
                   if (fc.name === "adk_request_credential") {
                     setThinking(false);
                     pendingAuthCall = fc;
+                    pendingAuthCall._invocationId = json.invocationId || json.invocation_id;
                     const args = fc.args || {};
                     const authConfig = args.authConfig || args.auth_config;
                     if (!authConfig) { add("Error: Missing auth configuration.", "agent"); continue; }
