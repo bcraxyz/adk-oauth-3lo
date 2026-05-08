@@ -124,18 +124,16 @@ async def commit(request: Request):
     state = request.query_params.get("user_id_validation_state")
 
     user_id = request.cookies.get("user_id")
-    cookie_nonce = request.cookies.get("consent_nonce")
-
     entry = pending_auth.get(user_id) if user_id else None
+
     if not entry and pending_auth:
         user_id, entry = next(iter(pending_auth.items()))
 
-    # Use cookie nonce (set by JS, same as Google's sample) with server-side as fallback
-    nonce = cookie_nonce or (entry["nonce"] if entry else None)
+    # Always use server-side nonce — cookie nonce is unreliable (persists across sessions)
+    nonce = entry["nonce"] if entry else None
     invocation_id = entry.get("invocation_id") if entry else None
 
     logger.info(f"commit: user_id={user_id}, nonce_present={bool(nonce)}, connector={connector}")
-    logger.info(f"cookie_nonce={request.cookies.get('consent_nonce')}, server_nonce={nonce}")
 
     payload = {
         "userId": user_id,
