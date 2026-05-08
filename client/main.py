@@ -158,6 +158,22 @@ async def commit(request: Request):
     # Wait for Auth Manager to finish storing the token asynchronously.
     await asyncio.sleep(3.0)
 
+    # Verify the token is actually retrievable before closing the popup.
+    try:
+        verify_resp = await asyncio.to_thread(
+            lambda: __import__("requests").post(
+                f"https://iamconnectorcredentials.googleapis.com/v1alpha/{connector}/credentials:retrieve",
+                json={
+                    "user_id": user_id,
+                    "continue_uri": os.environ.get("CONTINUE_URI", ""),
+                    "scopes": ["User.Read", "offline_access"],
+                },
+            )
+        )
+        logger.info(f"post-finalize retrieve: status={verify_resp.status_code} done={verify_resp.json().get('done')} metadata_keys={list((verify_resp.json().get('metadata') or {}).keys())}")
+    except Exception as e:
+        logger.warning(f"post-finalize retrieve check failed: {e}")
+
     return HTMLResponse("""
         <script>window.close();</script>
         <p>Success. You can close this window.</p>
