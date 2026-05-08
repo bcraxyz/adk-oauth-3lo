@@ -160,6 +160,10 @@ async def commit(request: Request):
 
     # Verify the token is actually retrievable before closing the popup.
     try:
+        import google.auth
+        import google.auth.transport.requests
+        creds, _ = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
+        creds.refresh(google.auth.transport.requests.Request())
         verify_resp = await asyncio.to_thread(
             lambda: __import__("requests").post(
                 f"https://iamconnectorcredentials.googleapis.com/v1alpha/{connector}/credentials:retrieve",
@@ -168,9 +172,11 @@ async def commit(request: Request):
                     "continue_uri": os.environ.get("CONTINUE_URI", ""),
                     "scopes": ["User.Read", "offline_access"],
                 },
+                headers={"Authorization": f"Bearer {creds.token}"},
             )
         )
-        logger.info(f"post-finalize retrieve: status={verify_resp.status_code} done={verify_resp.json().get('done')} metadata_keys={list((verify_resp.json().get('metadata') or {}).keys())}")
+        data = verify_resp.json()
+        logger.info(f"post-finalize retrieve: status={verify_resp.status_code} done={data.get('done')} metadata_keys={list((data.get('metadata') or {}).keys())}")
     except Exception as e:
         logger.warning(f"post-finalize retrieve check failed: {e}")
 
