@@ -106,9 +106,11 @@ async def chat(request: Request):
                                         oauth2 = exchanged.get("oauth2") or {}
                                         nonce = oauth2.get("nonce")
                                         invocation_id = ev.get("invocationId") or ev.get("invocation_id")
-                                        if nonce:
+                                        if nonce and user_id not in pending_auth:
                                             pending_auth[user_id] = {"nonce": nonce, "invocation_id": invocation_id}
                                             logger.info(f"Stored nonce and invocation_id={invocation_id} for user {user_id}")
+                                        elif nonce and user_id in pending_auth:
+                                            logger.info(f"Ignoring duplicate adk_request_credential for user {user_id}, keeping original nonce")
                             except Exception:
                                 pass
                         yield f"{line}\n\n"
