@@ -22,6 +22,11 @@ app = FastAPI()
 AGENT_URL = os.environ.get("AGENT_BACKEND_URL", "http://localhost:8000")
 APP_NAME = "adk_oauth_3lo"
 
+# Server-side nonce store: user_id -> {"nonce": str, "invocation_id": str}
+# Populated by intercepting adk_request_credential events in the SSE stream.
+# Only the FIRST nonce per user is stored — subsequent ones are ignored.
+pending_auth: dict[str, dict] = {}
+
 
 @app.get("/")
 def ui():
@@ -50,6 +55,8 @@ async def chat(request: Request):
             "role": "user",
             "parts": [{"text": message}],
         }
+        # Clear any pending auth state for this user on a new message
+        pending_auth.pop(user_id, None)
     elif function_response:
         payload["newMessage"] = {
             "role": "user",
@@ -70,7 +77,27 @@ async def chat(request: Request):
                     return
                 async for line in r.aiter_lines():
                     if line:
-                        yield f"data: {line}\n\n" if line.startswith("{") else f"{line}\n\n"
+                        json_str = line[6:] if line.startswith("data: ") else line
+                        if json_str.startswith("{"):
+                            try:
+                                ev = json.loads(json_str)
+                                parts = (ev.get("content") or {}).get("parts") or []
+                                for p in parts:
+                                    fc = p.get("functionCall") or p.get("function_call")
+                                    if fc and fc.get("name") == "adk_request_credential":
+                                        if user_id not in pending_auth:
+                                            args = fc.get("args") or {}
+                                            auth_config = args.get("authConfig") or args.get("auth_config") or {}
+                                            exchanged = auth_config.get("exchangedAuthCredential") or auth_config.get("exchanged_auth_credential") or {}
+                                            oauth2 = exchanged.get("oauth2") or {}
+                                            nonce = oauth2.get("nonce")
+                                            invocation_id = ev.get("invocationId") or ev.get("invocation_id")
+                                            if nonce:
+                                                pending_auth[user_id] = {"nonce": nonce, "invocation_id": invocation_id}
+                                                logger.info(f"Stored nonce and invocation_id={invocation_id} for user {user_id}")
+                            except Exception:
+                                pass
+                        yield f"{line}\n\n"
 
     return StreamingResponse(proxy_stream(), media_type="text/event-stream")
 
@@ -78,13 +105,21 @@ async def chat(request: Request):
 @app.api_route("/commit", methods=["GET"])
 async def commit(request: Request):
     connector = request.query_params.get("connector_name")
-    payload = {
-        "userId": request.cookies.get("user_id"),
-        "userIdValidationState": request.query_params.get("user_id_validation_state"),
-        "consentNonce": request.cookies.get("consent_nonce"),
-    }
+    state = request.query_params.get("user_id_validation_state")
 
-    logger.info(f"commit: user_id={payload['userId']}, nonce_present={bool(payload['consentNonce'])}, connector={connector}")
+    user_id = request.cookies.get("user_id")
+    entry = pending_auth.get(user_id) if user_id else None
+    if not entry and pending_auth:
+        user_id, entry = next(iter(pending_auth.items()))
+
+    nonce = entry["nonce"] if entry else None
+    logger.info(f"commit: user_id={user_id}, nonce_present={bool(nonce)}, connector={connector}")
+
+    payload = {
+        "userId": user_id,
+        "userIdValidationState": state,
+        "consentNonce": nonce,
+    }
 
     url = f"https://iamconnectorcredentials.googleapis.com/v1alpha/{connector}/credentials:finalize"
     try:
@@ -97,6 +132,8 @@ async def commit(request: Request):
         status = e.response.status_code if hasattr(e, "response") else 500
         logger.error(f"Commit failed: {err_text}")
         return HTMLResponse(err_text, status_code=status)
+
+    pending_auth.pop(user_id, None)
 
     return HTMLResponse("""
         <script>window.close();</script>
